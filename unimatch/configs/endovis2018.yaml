@@ -1,0 +1,26 @@
+# arguments for dataset
+dataset: endovis2018
+nclass: 10
+crop_size: 512 #change?
+data_root: /home/eugenie/These/data/endovis2018/unsorted #train/images/
+
+# arguments for training
+epochs: 240
+batch_size: 8 #2 # per GPU x 4 GPUs
+lr: 0.005
+lr_multi: 10.0
+criterion:
+  name: OHEM #CELoss
+  kwargs:
+    ignore_index: 255
+conf_thresh: 0.95 #95
+split: 'all'
+
+# arguments for model
+#backbone: xception
+#dilations: [6, 12, 18]
+
+model: deeplabv3plus
+backbone: resnet101
+replace_stride_with_dilation: [False, False, True]
+dilations: [6, 12, 18]
