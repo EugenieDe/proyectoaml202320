@@ -59,7 +59,7 @@ from mask2former import (
     Endo2018InstanceDatasetMapper,
 )
 
-root_path = os.path.join('/','media','SSD1','nayobi','All_datasets','PSI-AVA')
+"""
 json_path_unlabeled = "/home/eugenie/These/data/endovis2018/train/splits/1_2/unlabeled.json"
 json_path_labeled = "/home/eugenie/These/data/endovis2018/train/splits/1_2/labeled.json"
 json_path_val = "/home/eugenie/These/data/endovis2018/val/RobotSeg2018_inst_class_val.json"
@@ -69,6 +69,17 @@ from detectron2.data.datasets import register_coco_instances
 register_coco_instances('endovis2018_train_1_2_unlabeled', {}, json_path_unlabeled, "/home/eugenie/These/data/endovis2018/train/images")
 register_coco_instances('endovis2018_train_1_2_labeled', {}, json_path_labeled, "/home/eugenie/These/data/endovis2018/train/images")
 register_coco_instances('endovis2018_val', {}, json_path_val, "/home/eugenie/These/data/endovis2018/val/images")
+"""
+
+json_path_unlabeled = "/home/eugenie/EndoVis/data/endovis2018/train/splits/1_2/unlabeled.json"
+json_path_labeled = "/home/eugenie/EndoVis/data/endovis2018/train/splits/1_2/labeled.json"
+json_path_val = "/home/eugenie/EndoVis/data/endovis2018/RobotSeg2018_inst_class_val.json"
+
+from detectron2.data.datasets import register_coco_instances
+
+register_coco_instances('endovis2018_train_1_2_unlabeled', {}, json_path_unlabeled, "/media/SSD0/ihernandez/ENDOVIS/data/endovis2018/train/images")
+register_coco_instances('endovis2018_train_1_2_labeled', {}, json_path_labeled, "/media/SSD0/ihernandez/ENDOVIS/data/endovis2018/train/images")
+register_coco_instances('endovis2018_val', {}, json_path_val, "/media/SSD0/ihernandez/ENDOVIS/data/endovis2018/val/images")
 
 
 class Trainer(DefaultTrainer):
