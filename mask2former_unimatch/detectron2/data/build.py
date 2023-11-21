@@ -455,7 +455,7 @@ def _train_loader_from_config(cfg, mapper=None, *, dataset=None, sampler=None, m
         elif mode == "train_l":
             dataset = get_detection_dataset_dicts(
                 cfg.DATASETS.TRAIN_L,
-                filter_empty=cfg.DATALOADER.FILTER_EMPTY_ANNOTATIONS,
+                filter_empty=True,#cfg.DATALOADER.FILTER_EMPTY_ANNOTATIONS,
                 min_keypoints=cfg.MODEL.ROI_KEYPOINT_HEAD.MIN_KEYPOINTS_PER_IMAGE
                 if cfg.MODEL.KEYPOINT_ON
                 else 0,

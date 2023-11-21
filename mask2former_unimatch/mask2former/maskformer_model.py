@@ -291,7 +291,7 @@ class MaskFormer(nn.Module):
 
             breakpoint()
             #VERIFIER CE QUE CONTIENT LOSSE_X
-            # TROUVER UN MOYEN D'ENLEVER LES INSTANCES DE LABELED SANS BBOX
+
                 
             for k in list(losses.keys()):
                 if k in self.criterion.weight_dict:
