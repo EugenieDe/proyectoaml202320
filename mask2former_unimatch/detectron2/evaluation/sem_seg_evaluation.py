@@ -194,6 +194,7 @@ class SemSegEvaluator(DatasetEvaluator):
         union = pos_gt + pos_pred - tp
         iou_valid = np.logical_and(acc_valid, union > 0)
         iou[iou_valid] = tp[iou_valid] / union[iou_valid]
+        breakpoint()
         macc = np.sum(acc[acc_valid]) / np.sum(acc_valid)
         miou = np.sum(iou[iou_valid]) / np.sum(iou_valid)
         fiou = np.sum(iou[iou_valid] * class_weights[iou_valid])

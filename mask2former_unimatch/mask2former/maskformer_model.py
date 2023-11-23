@@ -31,7 +31,8 @@ class MaskFormer(nn.Module):
         *,
         backbone: Backbone,
         sem_seg_head: nn.Module,
-        criterion: nn.Module,
+        criterion_l: nn.Module,
+        criterion_u: nn.Module,
         num_queries: int,
         object_mask_threshold: float,
         overlap_threshold: float,
@@ -73,7 +74,8 @@ class MaskFormer(nn.Module):
         super().__init__()
         self.backbone = backbone
         self.sem_seg_head = sem_seg_head
-        self.criterion = criterion
+        self.criterion_l = criterion_l
+        self.criterion_u = criterion_u
         self.num_queries = num_queries
         self.overlap_threshold = overlap_threshold
         self.object_mask_threshold = object_mask_threshold
@@ -128,7 +130,7 @@ class MaskFormer(nn.Module):
 
         losses = ["labels", "masks"]
 
-        criterion = SetCriterion(
+        criterion_l = SetCriterion(
             sem_seg_head.num_classes,
             matcher=matcher,
             weight_dict=weight_dict,
@@ -137,12 +139,26 @@ class MaskFormer(nn.Module):
             num_points=cfg.MODEL.MASK_FORMER.TRAIN_NUM_POINTS,
             oversample_ratio=cfg.MODEL.MASK_FORMER.OVERSAMPLE_RATIO,
             importance_sample_ratio=cfg.MODEL.MASK_FORMER.IMPORTANCE_SAMPLE_RATIO,
+            object_threshold=cfg.MODEL.MASK_FORMER.TEST.OBJECT_MASK_THRESHOLD,
+        )
+
+        criterion_u = SetCriterion(
+            sem_seg_head.num_classes,
+            matcher=matcher,
+            weight_dict=weight_dict,
+            eos_coef=no_object_weight,
+            losses=losses,
+            num_points=cfg.MODEL.MASK_FORMER.TRAIN_NUM_POINTS,
+            oversample_ratio=cfg.MODEL.MASK_FORMER.OVERSAMPLE_RATIO,
+            importance_sample_ratio=cfg.MODEL.MASK_FORMER.IMPORTANCE_SAMPLE_RATIO,
+            object_threshold=cfg.MODEL.MASK_FORMER.TEST.OBJECT_MASK_THRESHOLD,
         )
 
         return {
             "backbone": backbone,
             "sem_seg_head": sem_seg_head,
-            "criterion": criterion,
+            "criterion_l": criterion_l,
+            "criterion_u": criterion_u,
             "num_queries": cfg.MODEL.MASK_FORMER.NUM_OBJECT_QUERIES,
             "object_mask_threshold": cfg.MODEL.MASK_FORMER.TEST.OBJECT_MASK_THRESHOLD,
             "overlap_threshold": cfg.MODEL.MASK_FORMER.TEST.OVERLAP_THRESHOLD,
@@ -192,40 +208,38 @@ class MaskFormer(nn.Module):
                     segments_info (list[dict]): Describe each segment in `panoptic_seg`.
                         Each dict contains keys "id", "category_id", "isthing".
         """
-
-        images = [x["image"].to(self.device) for x in batched_inputs[0]]
-        images = [(x - self.pixel_mean) / self.pixel_std for x in images]
-        images = ImageList.from_tensors(images, self.size_divisibility)
-
-        images_u_w = [x["image_u_w"].to(self.device) for x in batched_inputs[1]]
-        images_u_w = [(x - self.pixel_mean) / self.pixel_std for x in images_u_w]
-        images_u_w = ImageList.from_tensors(images_u_w, self.size_divisibility)
-
-        images_u_s1 = [x["image_u_s1"].to(self.device) for x in batched_inputs[1]]
-        images_u_s1 = [(x - self.pixel_mean) / self.pixel_std for x in images_u_s1]
-        images_u_s1 = ImageList.from_tensors(images_u_s1, self.size_divisibility)
-
-        images_u_s2 = [x["image_u_s2"].to(self.device) for x in batched_inputs[1]]
-        images_u_s2 = [(x - self.pixel_mean) / self.pixel_std for x in images_u_s2]
-        images_u_s2 = ImageList.from_tensors(images_u_s2, self.size_divisibility)
-
-        features_x = self.backbone(images.tensor)
-        features_u_w = self.backbone(images_u_w.tensor)
-        features_u_s1 = self.backbone(images_u_s1.tensor)
-        features_u_s2 = self.backbone(images_u_s2.tensor)
-
-        features_u_wp = self.backbone(images_u_w.tensor)
-        features_u_wp['res2'] = nn.Dropout(0.5)(features_u_wp['res2'])
-        features_u_wp['res5'] = nn.Dropout(0.5)(features_u_wp['res5'])
-            
-        outputs_x = self.sem_seg_head(features_x)
-        outputs_u_w = self.sem_seg_head(features_u_w)
-        outputs_u_s1 = self.sem_seg_head(features_u_s1)
-        outputs_u_s2 = self.sem_seg_head(features_u_s2)
-        outputs_u_wp = self.sem_seg_head(features_u_wp)
-        
-
         if self.training:
+            images = [x["image"].to(self.device) for x in batched_inputs[0]]
+            images = [(x - self.pixel_mean) / self.pixel_std for x in images]
+            images = ImageList.from_tensors(images, self.size_divisibility)
+
+            images_u_w = [x["image_u_w"].to(self.device) for x in batched_inputs[1]]
+            images_u_w = [(x - self.pixel_mean) / self.pixel_std for x in images_u_w]
+            images_u_w = ImageList.from_tensors(images_u_w, self.size_divisibility)
+
+            images_u_s1 = [x["image_u_s1"].to(self.device) for x in batched_inputs[1]]
+            images_u_s1 = [(x - self.pixel_mean) / self.pixel_std for x in images_u_s1]
+            images_u_s1 = ImageList.from_tensors(images_u_s1, self.size_divisibility)
+
+            images_u_s2 = [x["image_u_s2"].to(self.device) for x in batched_inputs[1]]
+            images_u_s2 = [(x - self.pixel_mean) / self.pixel_std for x in images_u_s2]
+            images_u_s2 = ImageList.from_tensors(images_u_s2, self.size_divisibility)
+
+            features_x = self.backbone(images.tensor)
+            features_u_w = self.backbone(images_u_w.tensor)
+            features_u_s1 = self.backbone(images_u_s1.tensor)
+            features_u_s2 = self.backbone(images_u_s2.tensor)
+
+            features_u_wp = self.backbone(images_u_w.tensor)
+            features_u_wp['res2'] = nn.Dropout(0.5)(features_u_wp['res2'])
+            features_u_wp['res5'] = nn.Dropout(0.5)(features_u_wp['res5'])
+                
+            outputs_x = self.sem_seg_head(features_x)
+            outputs_u_w = self.sem_seg_head(features_u_w)
+            outputs_u_s1 = self.sem_seg_head(features_u_s1)
+            outputs_u_s2 = self.sem_seg_head(features_u_s2)
+            outputs_u_wp = self.sem_seg_head(features_u_wp)
+            
             mask_cls_results = outputs_u_w["pred_logits"]
             mask_pred_results = outputs_u_w["pred_masks"]
             # upsample masks
@@ -238,7 +252,8 @@ class MaskFormer(nn.Module):
             del outputs_u_w
 
             processed_results = []
-            keep_mask=[]
+            scores = []
+
             for mask_cls_result, mask_pred_result, input_per_image in zip(
                 mask_cls_results, mask_pred_results, batched_inputs[1]
             ):
@@ -254,9 +269,9 @@ class MaskFormer(nn.Module):
                 
                 # instance segmentation inference
                 if self.instance_on:
-                    instance_r, keep_r = retry_if_cuda_oom(self.instance_inference)(mask_cls_result, mask_pred_result)
+                    instance_r, score = retry_if_cuda_oom(self.instance_inference)(mask_cls_result, mask_pred_result)
                     processed_results[-1]["instances"] = instance_r
-                    keep_mask.append(keep_r)
+                    scores.append(score)
             # mask classification target
 
             if "instances" in batched_inputs[0][0]:
@@ -266,41 +281,40 @@ class MaskFormer(nn.Module):
                 targets = None
 
             # bipartite matching-based loss
-            losses_x = self.criterion(outputs_x, targets)
+            losses_x = self.criterion_l(outputs_x, targets)
 
             instances_u_w = [x["instances"].to(self.device) for x in processed_results]
             targets_u_w = self.prepare_targets(instances_u_w, images, mode="unsupervised")
-            breakpoint()
-
-            target_u_w_score_filtered= []
-            for i in range(len(targets_u_w)):
-                new_target = {}
-                new_target["labels"] = targets_u_w[i]["labels"][keep_mask[i]]
-                new_target["masks"] = targets_u_w[i]["masks"][keep_mask[i]]
-                target_u_w_score_filtered.append(new_target)
-
-            breakpoint()
 
             #PB : target_u_w_score_filtered peut être valide pour certaines images et pas d'autres
   
-            losses_u_w_fp = self.criterion(outputs_u_wp, targets_u_w)
-            losses_u_s1 = self.criterion(outputs_u_s1, targets_u_w)
-            losses_u_s2 = self.criterion(outputs_u_s2, targets_u_w)
-        
-            loss_u_s1 = loss_u_s1 * (conf_u_w_cutmixed1 >= cfg['conf_thresh'])
+            losses_u_w_fp = self.criterion_u(outputs_u_wp, targets_u_w) #, scores)
+            losses_u_s1 = self.criterion_u(outputs_u_s1, targets_u_w) #, scores)
+            losses_u_s2 = self.criterion_u(outputs_u_s2, targets_u_w) #, scores)
 
-            breakpoint()
-            #VERIFIER CE QUE CONTIENT LOSSE_X
+            losses = {}
+            for k in losses_x.keys():
+                losses[k] = (losses_x[k] + losses_u_s1[k] * 0.25 + losses_u_s2[k] * 0.25 + losses_u_w_fp[k] *0.5) / 2.0 
 
-                
             for k in list(losses.keys()):
-                if k in self.criterion.weight_dict:
-                    losses[k] *= self.criterion.weight_dict[k]
+                if k in self.criterion_l.weight_dict:
+                    losses[k] *= self.criterion_l.weight_dict[k]
                 else:
                     # remove this loss if not specified in `weight_dict`
                     losses.pop(k)
+            """
+            losses["x"]= returnSum(losses_x)
+            losses["u_w_fp"]= returnSum(losses_u_w_fp)
+            losses["u_s"]= returnSum(losses_u_s1)+returnSum(losses_u_s2)
+            """
             return losses
         else:
+            images = [x["image"].to(self.device) for x in batched_inputs]
+            images = [(x - self.pixel_mean) / self.pixel_std for x in images]
+            images = ImageList.from_tensors(images, self.size_divisibility)
+
+            features = self.backbone(images.tensor)
+            outputs = self.sem_seg_head(features)
             mask_cls_results = outputs["pred_logits"]
             mask_pred_results = outputs["pred_masks"]
             # upsample masks
@@ -472,18 +486,43 @@ class MaskFormer(nn.Module):
         result = Instances(image_size)
         # mask (before sigmoid)
 
-        result.pred_masks = (mask_pred > 0).float()
-        result.pred_classes = labels_per_image
-        result.pred_boxes = Boxes(torch.zeros(mask_pred.size(0), 4))
+        #result.pred_masks = (mask_pred > 0).float()
+        #result.pred_classes = labels_per_image
+        #result.pred_boxes = Boxes(torch.zeros(mask_pred.size(0), 4))
         # Uncomment the following to get boxes from masks (this is slow)
         # result.pred_boxes = BitMasks(mask_pred > 0).get_bounding_boxes()
         # calculate average mask prob
-        mask_scores_per_image = (mask_pred.sigmoid().flatten(1) * result.pred_masks.flatten(1)).sum(1) / (result.pred_masks.flatten(1).sum(1) + 1e-6)
-        result.scores = scores_per_image * mask_scores_per_image
+        pred_mask = (mask_pred > 0).float()
+        mask_scores_per_image = (mask_pred.sigmoid().flatten(1) * pred_mask.flatten(1)).sum(1) / (pred_mask.flatten(1).sum(1) + 1e-6)
+        new_scores = scores_per_image * mask_scores_per_image
 
         if self.training:
-            #keep only the confident predictions
-            keep = labels_per_image.ne(self.sem_seg_head.num_classes) & (result.scores > self.object_mask_threshold)
-            return result, keep
+            #if prediction not confident, only keep the most confident mask
+            #keep = labels_per_image.ne(self.sem_seg_head.num_classes) & (result.scores > self.object_mask_threshold)
+            max_score = torch.max(new_scores)
+            keep = labels_per_image.ne(self.sem_seg_head.num_classes) & ((new_scores > self.object_mask_threshold) | (new_scores == max_score))
+            result.pred_masks = pred_mask[keep]
+            result.pred_classes = labels_per_image[keep]
+            result.pred_boxes = Boxes(torch.zeros(mask_pred.size(0), 4))[keep]
+            #result.pred_boxes = BitMasks(mask_pred > 0).get_bounding_boxes()
+            result.scores = new_scores[keep]
+            return result, max_score
+        else:
+            result.pred_masks = pred_mask
+            result.pred_boxes = Boxes(torch.zeros(mask_pred.size(0), 4))
+            result.pred_classes = labels_per_image
+            # Uncomment the following to get boxes from masks (this is slow)
+            # result.pred_boxes = BitMasks(mask_pred > 0).get_bounding_boxes()
+            # calculate average mask prob
+            result.scores = new_scores
         
         return result
+
+def returnSum(myDict):
+ 
+    list = []
+    for i in myDict:
+        list.append(myDict[i])
+    final = sum(list)
+ 
+    return final

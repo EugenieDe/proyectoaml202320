@@ -41,6 +41,7 @@ from detectron2.evaluation import (
     LVISEvaluator,
     SemSegEvaluator,
     verify_results,
+    Endovis2018Evaluators
 )
 from detectron2_git.projects.DeepLab.deeplab import add_deeplab_config, build_lr_scheduler
 from detectron2.solver.build import maybe_add_gradient_clipping
@@ -59,12 +60,14 @@ from mask2former import (
     Endo2018InstanceDatasetMapper,
 )
 
-"""
+
 json_path_unlabeled = "/home/eugenie/These/data/endovis2018/train/splits/1_2/unlabeled.json"
 json_path_labeled = "/home/eugenie/These/data/endovis2018/train/splits/1_2/labeled.json"
 json_path_val = "/home/eugenie/These/data/endovis2018/val/RobotSeg2018_inst_class_val.json"
 
 from detectron2.data.datasets import register_coco_instances
+
+metadata = {'evaluator_type': 'sem_seg',}
 
 register_coco_instances('endovis2018_train_1_2_unlabeled', {}, json_path_unlabeled, "/home/eugenie/These/data/endovis2018/train/images")
 register_coco_instances('endovis2018_train_1_2_labeled', {}, json_path_labeled, "/home/eugenie/These/data/endovis2018/train/images")
@@ -80,7 +83,7 @@ from detectron2.data.datasets import register_coco_instances
 register_coco_instances('endovis2018_train_1_2_unlabeled', {}, json_path_unlabeled, "/media/SSD0/ihernandez/ENDOVIS/data/endovis2018/train/images")
 register_coco_instances('endovis2018_train_1_2_labeled', {}, json_path_labeled, "/media/SSD0/ihernandez/ENDOVIS/data/endovis2018/train/images")
 register_coco_instances('endovis2018_val', {}, json_path_val, "/media/SSD0/ihernandez/ENDOVIS/data/endovis2018/val/images")
-
+"""
 
 class Trainer(DefaultTrainer):
     """
@@ -99,7 +102,10 @@ class Trainer(DefaultTrainer):
         if output_folder is None:
             output_folder = os.path.join(cfg.OUTPUT_DIR, "inference")
         evaluator_list = []
-        evaluator_type = MetadataCatalog.get(dataset_name).evaluator_type
+        #evaluator_type = MetadataCatalog.get(dataset_name).evaluator_type
+        evaluator_type = "endovis2018"
+        if evaluator_type == "endovis2018":
+            evaluator_list.append(Endovis2018Evaluators(dataset_name, output_dir=output_folder))
         # semantic segmentation
         if evaluator_type in ["sem_seg", "ade20k_panoptic_seg"]:
             evaluator_list.append(

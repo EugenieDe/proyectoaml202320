@@ -651,7 +651,7 @@ def build_detection_test_loader(
     if isinstance(dataset, list):
         dataset = DatasetFromList(dataset, copy=False)
     if mapper is not None:
-        dataset = MapDataset(dataset, mapper, mode=mode)
+        dataset = MapDataset(dataset, mapper)
     if isinstance(dataset, torchdata.IterableDataset):
         assert sampler is None, "sampler must be None if dataset is IterableDataset"
     else:

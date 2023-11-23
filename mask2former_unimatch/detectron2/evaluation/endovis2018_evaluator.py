@@ -1,107 +1,111 @@
 # Copyright (c) Facebook, Inc. and its affiliates.
-import contextlib
-import copy
-import io
-import itertools
-import json
+import datetime
 import logging
-import numpy as np
-import os
-import pickle
-from collections import OrderedDict
-import pycocotools.mask as mask_util
+import time
+from collections import OrderedDict, abc
+from contextlib import ExitStack, contextmanager
+from typing import List, Union
 import torch
-from pycocotools.coco import COCO
-from pycocotools.cocoeval import COCOeval
-from tabulate import tabulate
+from torch import nn
+import os
+import io
+import contextlib
+import itertools
+import copy
+import json
+import numpy as np
+import gc
+import pickle
+import skimage.io as skio
+from matplotlib.colors import Normalize
+import matplotlib.pyplot as plt
 
-import detectron2.utils.comm as comm
+from detectron2.structures import Boxes, BoxMode, pairwise_iou
+from detectron2.utils.comm import get_world_size, is_main_process
+from detectron2.utils.logger import log_every_n_seconds
 from detectron2.config import CfgNode
 from detectron2.data import MetadataCatalog
 from detectron2.data.datasets.coco import convert_to_coco_json
-from detectron2.structures import Boxes, BoxMode, pairwise_iou
 from detectron2.utils.file_io import PathManager
+import detectron2.utils.comm as comm
 from detectron2.utils.logger import create_small_table
-
-from .evaluator import DatasetEvaluator
 
 try:
     from detectron2.evaluation.fast_eval_api import COCOeval_opt
 except ImportError:
     COCOeval_opt = COCOeval
 
+from tabulate import tabulate
 
-class COCOEvaluator(DatasetEvaluator):
+import pycocotools.mask as mask_util
+from pycocotools.coco import COCO
+from pycocotools.cocoeval import COCOeval
+
+from .evaluator import DatasetEvaluator
+
+class Endovis2018Evaluators(DatasetEvaluator):
     """
-    Evaluate AR for object proposals, AP for instance detection/segmentation, AP
-    for keypoint detection outputs using COCO's metrics.
-    See http://cocodataset.org/#detection-eval and
-    http://cocodataset.org/#keypoints-eval to understand its metrics.
-    The metrics range from 0 to 100 (instead of 0 to 1), where a -1 or NaN means
-    the metric cannot be computed (e.g. due to no predictions made).
+    Wrapper class to combine multiple :class:`DatasetEvaluator` instances.
 
-    In addition to COCO, this evaluator is able to support any bounding box detection,
-    instance segmentation, or keypoint detection dataset.
+    This class dispatches every evaluation call to
+    all of its :class:`DatasetEvaluator`.
     """
 
     def __init__(
-        self,
-        dataset_name,
-        tasks=None,
-        distributed=True,
-        output_dir=None,
-        *,
-        max_dets_per_image=None,
-        use_fast_impl=True,
-        kpt_oks_sigmas=(),
-        allow_cached_coco=True,
-    ):
+    self,
+    dataset_name,
+    tasks=None,
+    distributed=True,
+    output_dir=None,
+    *,
+    max_dets_per_image=None,
+    use_fast_impl=True,
+    kpt_oks_sigmas=(),
+    allow_cached_coco=True,
+):
         """
         Args:
-            dataset_name (str): name of the dataset to be evaluated.
-                It must have either the following corresponding metadata:
+        dataset_name (str): name of the dataset to be evaluated.
+            It must have either the following corresponding metadata:
 
-                    "json_file": the path to the COCO format annotation
+                "json_file": the path to the COCO format annotation
 
-                Or it must be in detectron2's standard dataset format
-                so it can be converted to COCO format automatically.
-            tasks (tuple[str]): tasks that can be evaluated under the given
-                configuration. A task is one of "bbox", "segm", "keypoints".
-                By default, will infer this automatically from predictions.
-            distributed (True): if True, will collect results from all ranks and run evaluation
-                in the main process.
-                Otherwise, will only evaluate the results in the current process.
-            output_dir (str): optional, an output directory to dump all
-                results predicted on the dataset. The dump contains two files:
+            Or it must be in detectron2's standard dataset format
+            so it can be converted to COCO format automatically.
+        tasks (tuple[str]): tasks that can be evaluated under the given
+            configuration. A task is one of "bbox", "segm", "keypoints".
+            By default, will infer this automatically from predictions.
+        distributed (True): if True, will collect results from all ranks and run evaluation
+            in the main process.
+            Otherwise, will only evaluate the results in the current process.
+        output_dir (str): optional, an output directory to dump all
+            results predicted on the dataset. The dump contains two files:
 
-                1. "instances_predictions.pth" a file that can be loaded with `torch.load` and
-                   contains all the results in the format they are produced by the model.
-                2. "coco_instances_results.json" a json file in COCO's result format.
-            max_dets_per_image (int): limit on the maximum number of detections per image.
-                By default in COCO, this limit is to 100, but this can be customized
-                to be greater, as is needed in evaluation metrics AP fixed and AP pool
-                (see https://arxiv.org/pdf/2102.01066.pdf)
-                This doesn't affect keypoint evaluation.
-            use_fast_impl (bool): use a fast but **unofficial** implementation to compute AP.
-                Although the results should be very close to the official implementation in COCO
-                API, it is still recommended to compute results with the official API for use in
-                papers. The faster implementation also uses more RAM.
-            kpt_oks_sigmas (list[float]): The sigmas used to calculate keypoint OKS.
-                See http://cocodataset.org/#keypoints-eval
-                When empty, it will use the defaults in COCO.
-                Otherwise it should be the same length as ROI_KEYPOINT_HEAD.NUM_KEYPOINTS.
-            allow_cached_coco (bool): Whether to use cached coco json from previous validation
-                runs. You should set this to False if you need to use different validation data.
-                Defaults to True.
-        """
+            1. "instances_predictions.pth" a file that can be loaded with `torch.load` and
+                contains all the results in the format they are produced by the model.
+            2. "coco_instances_results.json" a json file in COCO's result format.
+        max_dets_per_image (int): limit on the maximum number of detections per image.
+            By default in COCO, this limit is to 100, but this can be customized
+            to be greater, as is needed in evaluation metrics AP fixed and AP pool
+            (see https://arxiv.org/pdf/2102.01066.pdf)
+            This doesn't affect keypoint evaluation.
+        use_fast_impl (bool): use a fast but **unofficial** implementation to compute AP.
+            Although the results should be very close to the official implementation in COCO
+            API, it is still recommended to compute results with the official API for use in
+            papers. The faster implementation also uses more RAM.
+        kpt_oks_sigmas (list[float]): The sigmas used to calculate keypoint OKS.
+            See http://cocodataset.org/#keypoints-eval
+            When empty, it will use the defaults in COCO.
+            Otherwise it should be the same length as ROI_KEYPOINT_HEAD.NUM_KEYPOINTS.
+        allow_cached_coco (bool): Whether to use cached coco json from previous validation
+            runs. You should set this to False if you need to use different validation data.
+            Defaults to True.
+    """
         self._logger = logging.getLogger(__name__)
         self._distributed = distributed
         self._output_dir = output_dir
 
-        if use_fast_impl and (COCOeval_opt is COCOeval):
-            self._logger.info("Fast COCO eval is not built. Falling back to official COCO eval.")
-            use_fast_impl = False
-        self._use_fast_impl = use_fast_impl
+        self._use_fast_impl = False
 
         # COCOeval requires the limit on the number of detections per image (maxDets) to be a list
         # with at least 3 elements. The default maxDets in COCOeval is [1, 10, 100], in which the
@@ -164,8 +168,8 @@ class COCOEvaluator(DatasetEvaluator):
                 "instances" that contains :class:`Instances`.
         """
         for input, output in zip(inputs, outputs):
-            prediction = {"image_id": input["image_id"]}
-           
+            prediction = {"image_id": input["image_id"], "file_name": input["file_name"].split('/')[-1]}
+
             if "instances" in output:
                 instances = output["instances"].to(self._cpu_device)
                 prediction["instances"] = instances_to_coco_json(instances, input["image_id"])
@@ -188,7 +192,6 @@ class COCOEvaluator(DatasetEvaluator):
                 return {}
         else:
             predictions = self._predictions
-
         if len(predictions) == 0:
             self._logger.warning("[COCOEvaluator] Did not receive valid predictions.")
             return {}
@@ -198,6 +201,97 @@ class COCOEvaluator(DatasetEvaluator):
             file_path = os.path.join(self._output_dir, "instances_predictions.pth")
             with PathManager.open(file_path, "wb") as f:
                 torch.save(predictions, f)
+        
+        
+        cats = {1,2,3,4,5,6,7}
+        ious = []
+        gt_ious = []
+        pcls_ious = {1:[],2:[],3:[],4:[],5:[],6:[],7:[]}
+        names = ['seq_2_frame057.png',
+            'seq_15_frame022.png',
+            'seq_5_frame014.png',
+            'seq_5_frame137.png',
+            'seq_9_frame094.png',
+            'seq_15_frame126.png',
+            'seq_2_frame103.png',
+            'seq_2_frame012.png',
+            'seq_2_frame90.png'
+            ]
+        for pred in predictions:
+            gt_img = skio.imread(os.path.join('/home/eugenie/These/data/endovis2018/val/annotations', pred["file_name"]))
+            gt_img[gt_img == 6] = 4
+            gt_img[gt_img == 7] = 5
+            gt_img[gt_img == 8] = 6
+            gt_img[gt_img == 9] = 7
+
+            gt_classes = set(np.unique(gt_img))
+            gt_classes.remove(0)
+            sem_im = np.zeros((1024,1280))
+            for ins in pred["instances"]:
+                p_mask = mask_util.decode(ins['segmentation'])
+                sem_im[p_mask==1]=ins['category_id']+1
+
+            if pred["file_name"] in names:
+                image = skio.imread(os.path.join('/home/eugenie/These/data/endovis2018/val/images', pred["file_name"]))
+                visualize(image, sem_im, gt_img, pred["file_name"], self._output_dir)
+
+
+            categories = set(np.unique(sem_im))
+            if 0 in categories:
+                categories.remove(0)
+
+            class_iou = []
+            gt_class_iou = []
+
+            for label in cats:
+                if label in gt_classes or label in categories:
+                    pred_im = (sem_im==label).astype('uint8')
+                    gt_mask = (gt_img==label).astype('uint8')
+
+                    intersection = np.sum(pred_im * gt_mask)
+                    union = np.sum(pred_im) + np.sum(gt_mask)
+                    im_IoU = intersection/(union-intersection)
+                    assert im_IoU>=0 and im_IoU<=1, im_IoU
+                    class_iou.append(im_IoU)
+                    pcls_ious[label].append(im_IoU)
+
+                    if label in gt_classes and label not in categories:
+                        assert im_IoU == 0
+                    
+                    if label not in gt_classes and label in categories:
+                        assert im_IoU == 0
+                    
+                    if label in gt_classes:
+                        gt_class_iou.append(im_IoU)
+                
+
+            assert len(class_iou)==len(gt_classes.union(categories))
+            assert len(gt_class_iou)==len(gt_classes)
+
+            if len(class_iou)>0:
+                ious.append(float(np.mean(class_iou)))
+            
+            if len(gt_class_iou)>0:
+                gt_ious.append(float(np.mean(gt_class_iou)))
+
+        total_iou = float(np.mean(ious))
+        total_gt_iou = float(np.mean(gt_ious))
+
+        for cls in pcls_ious:
+            pcls_ious[cls] = float(np.mean(pcls_ious[cls])) if len(pcls_ious[cls])>0 else 0
+        total_ciou = float(np.mean(list(pcls_ious.values())))
+
+        self._logger.info("Evaluating metrics ...")
+        res = {}
+        for k in pcls_ious.keys():
+            res[str(k)] = pcls_ious[k]*100
+        res["gt_iou"] = total_gt_iou*100
+        res["iou"] = total_iou*100
+        res["c_iou"] = total_ciou*100
+        self._logger.info("Proposal metrics: \n" + create_small_table(res))
+
+        gc.collect()
+        return res
 
         self._results = OrderedDict()
         if "proposals" in predictions[0]:
@@ -630,7 +724,6 @@ def _evaluate_predictions_on_coco(
 
     return coco_eval
 
-
 class COCOevalMaxDets(COCOeval):
     """
     Modified version of COCOeval for evaluating AP with a custom
@@ -720,3 +813,35 @@ class COCOevalMaxDets(COCOeval):
 
     def __str__(self):
         self.summarize()
+
+def visualize(image, pred, mask, name, output_dir):
+    #breakpoint()
+    image_c = image
+    pred_c = pred
+    mask_c = mask
+    fig, ax = plt.subplots(1,3)
+    ax[0].set_title('Image',fontsize = 5)
+    ax[0].imshow(image_c)
+    ax[0].axis('off')
+
+    ax[1].set_title('Ground Truth',fontsize = 5)
+    ax[1].imshow(np.zeros(mask_c.shape),cmap='gray')
+    mask_c = mask_c.astype('float')
+    mask_c[mask_c==0]=np.nan
+    ax[1].imshow(mask_c,cmap='Set1',norm=Normalize(1,10))
+    ax[1].axis('off')
+
+    ax[2].set_title('Pred',fontsize = 5)
+    ax[2].imshow(np.zeros(pred_c.shape),cmap='gray')
+    pred_c = pred_c.astype('float')
+    pred_c[pred_c==0]=np.nan
+    ax[2].imshow(pred_c,cmap='Set1',norm=Normalize(1,10))
+    ax[2].axis('off')
+
+    plt.tight_layout()
+    plt.subplots_adjust(wspace=0, hspace=0)
+
+    os.makedirs(os.path.join(output_dir, "images"), exist_ok=True)
+
+    plt.savefig('{}/images/{}'.format(output_dir,name), dpi=400, bbox_inches='tight')
+    plt.close()

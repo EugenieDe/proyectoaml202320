@@ -15,7 +15,7 @@ MODEL:
     RES5_MULTI_GRID: [1, 1, 1]  # not used
   MASK_FORMER:
     TEST:
-      OBJECT_MASK_THRESHOLD: 0.95
+      OBJECT_MASK_THRESHOLD: 0.85
 DATASETS:
   TRAIN_U: ("endovis2018_train_1_2_unlabeled",)
   TRAIN_L: ("endovis2018_train_1_2_labeled",)
@@ -50,7 +50,7 @@ TEST:
   #INSTANCE_ON: true
   #PANOPTIC_ON: false
   #SEMANTIC_ON: false
-  EVAL_PERIOD: 1500
+  EVAL_PERIOD: 1500 #1500
 DATALOADER:
   FILTER_EMPTY_ANNOTATIONS: False
   NUM_WORKERS: 4
