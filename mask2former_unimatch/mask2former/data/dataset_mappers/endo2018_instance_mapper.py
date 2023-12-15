@@ -58,6 +58,7 @@ def build_transform_gen(cfg, is_train, mode):
         augmentation.append(T.Resize((min_size_train,max_size_train)))
 
     elif mode=="train_u":
+        """
         augmentation.append(T.Resize((min_size_train,max_size_train)))
         augmentation.append(T.RandomFlip(prob=0.5, horizontal=True, vertical=False))
         augmentation.append(T.RandomApply(T.RandomRotation(angle=90), prob=0.5))
@@ -65,6 +66,15 @@ def build_transform_gen(cfg, is_train, mode):
         augmentation.append(T.RandomApply(T.RandomContrast(intensity_min=0.5, intensity_max=1.5), prob=0.5))
         augmentation.append(T.RandomApply(T.RandomBrightness(intensity_min=0.5, intensity_max=1.5), prob=0.5))
         augmentation.append(T.RandomApply(T.RandomSaturation(intensity_min=0.5, intensity_max=1.5), prob=0.5))
+        """
+        augmentation.append(T.Resize((min_size_train,max_size_train)))
+        augmentation.append(T.RandomFlip(prob=0.5, horizontal=True, vertical=False))
+        augmentation.append(T.RandomApply(T.RandomRotation(angle=90), prob=0.5))
+        augmentation.append(T.RandomFlip(prob=0.5, horizontal=False, vertical=True))
+        augmentation.append(T.RandomContrast(intensity_min=0.5, intensity_max=1.5))
+        augmentation.append(T.RandomBrightness(intensity_min=0.5, intensity_max=1.5))
+        augmentation.append(T.RandomSaturation(intensity_min=0.5, intensity_max=1.5))
+        augmentation.append(T.RandomLighting(scale=1))
 
     return augmentation
 

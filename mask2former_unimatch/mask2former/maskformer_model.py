@@ -281,16 +281,16 @@ class MaskFormer(nn.Module):
                 targets = None
 
             # bipartite matching-based loss
-            losses_x = self.criterion_l(outputs_x, targets)
+            losses_x = self.criterion_l(outputs_x, targets, [2.0])
 
             instances_u_w = [x["instances"].to(self.device) for x in processed_results]
             targets_u_w = self.prepare_targets(instances_u_w, images, mode="unsupervised")
 
             #PB : target_u_w_score_filtered peut être valide pour certaines images et pas d'autres
   
-            losses_u_w_fp = self.criterion_u(outputs_u_wp, targets_u_w) #, scores)
-            losses_u_s1 = self.criterion_u(outputs_u_s1, targets_u_w) #, scores)
-            losses_u_s2 = self.criterion_u(outputs_u_s2, targets_u_w) #, scores)
+            losses_u_w_fp = self.criterion_u(outputs_u_wp, targets_u_w, scores)
+            losses_u_s1 = self.criterion_u(outputs_u_s1, targets_u_w, scores)
+            losses_u_s2 = self.criterion_u(outputs_u_s2, targets_u_w, scores)
 
             losses = {}
             for k in losses_x.keys():

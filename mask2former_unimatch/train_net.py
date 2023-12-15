@@ -71,6 +71,10 @@ metadata = {'evaluator_type': 'sem_seg',}
 
 register_coco_instances('endovis2018_train_1_2_unlabeled', {}, json_path_unlabeled, "/home/eugenie/These/data/endovis2018/train/images")
 register_coco_instances('endovis2018_train_1_2_labeled', {}, json_path_labeled, "/home/eugenie/These/data/endovis2018/train/images")
+register_coco_instances('endovis2018_train_1_4_unlabeled', {}, "/home/eugenie/These/data/endovis2018/train/splits/1_4/unlabeled.json", "/home/eugenie/These/data/endovis2018/train/images")
+register_coco_instances('endovis2018_train_1_4_labeled', {}, "/home/eugenie/These/data/endovis2018/train/splits/1_4/labeled.json", "/home/eugenie/These/data/endovis2018/train/images")
+register_coco_instances('endovis2018_train_1_8_unlabeled', {}, "/home/eugenie/These/data/endovis2018/train/splits/1_8/unlabeled.json", "/home/eugenie/These/data/endovis2018/train/images")
+register_coco_instances('endovis2018_train_1_8_labeled', {}, "/home/eugenie/These/data/endovis2018/train/splits/1_8/labeled.json", "/home/eugenie/These/data/endovis2018/train/images")
 register_coco_instances('endovis2018_val', {}, json_path_val, "/home/eugenie/These/data/endovis2018/val/images")
 """
 

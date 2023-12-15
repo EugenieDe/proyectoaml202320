@@ -23,7 +23,7 @@ def dice_loss(
         targets: torch.Tensor,
         num_masks: float,
         threshold:float,
-        scores=torch.tensor([2.0,2.0]),
+        scores: torch.Tensor, #torch.tensor([2.0,2.0]),
     ):
     """
     Compute the DICE loss, similar to generalized IOU for masks
@@ -40,12 +40,12 @@ def dice_loss(
     numerator = 2 * (inputs * targets).sum(-1)
     denominator = inputs.sum(-1) + targets.sum(-1)
     loss = 1 - (numerator + 1) / (denominator + 1)
-    if (scores ==  torch.tensor([2.0,2.0]))[0].item():
+    if (scores[0].item() ==  2.0):
         return loss.sum() / num_masks
     else:
         for i in range(0, scores.shape[0]):
             if scores[i].item()<threshold:
-                loss[i] = loss[i]*0.0
+                loss[i] = loss[i]*scores[i].item() #0.0
     return loss.sum() / num_masks
 
 
@@ -59,7 +59,7 @@ def sigmoid_ce_loss(
         targets: torch.Tensor,
         num_masks: float,
         threshold:float,
-        scores=torch.tensor([2.0,2.0]),
+        scores: torch.Tensor,
     ):
     """
     Args:
@@ -76,12 +76,12 @@ def sigmoid_ce_loss(
 
     loss = F.binary_cross_entropy_with_logits(inputs, targets, reduction="none")
     loss = loss.mean(1)
-    if (scores ==  torch.tensor([2.0,2.0]))[0].item():
+    if (scores[0].item() ==  2.0):
         return loss.sum() / num_masks
     else:
         for i in range(0, scores.shape[0]):
             if scores[i].item()<threshold:
-                loss[i] = loss[i]*0.0
+                loss[i] = loss[i]*scores[i].item() #0.0
     return loss.sum() / num_masks
 
 
@@ -154,7 +154,7 @@ class SetCriterion(nn.Module):
         )
         target_classes[idx] = target_classes_o
         loss=[]
-        if scores == None:
+        if scores == [2.0]:
             loss_ce = F.cross_entropy(src_logits.transpose(1, 2), target_classes, self.empty_weight)
         else:
             for i in range(0, len(scores)):
@@ -163,7 +163,7 @@ class SetCriterion(nn.Module):
                 except:
                     breakpoint()
                 if scores[i].item()<self.object_threshold:
-                    loss_c = loss_c*0.0
+                    loss_c = loss_c* scores[i].item() #0.0
                 loss.append(loss_c)
             loss_ce = sum(loss)/len(loss)
         losses = {"loss_ce": loss_ce}
@@ -212,13 +212,13 @@ class SetCriterion(nn.Module):
             align_corners=False,
         ).squeeze(1)
 
-        if scores == None:
+        scores = torch.as_tensor(scores)
+        if scores == [2.0]:
             losses = {
-                "loss_mask": sigmoid_ce_loss_jit(point_logits, point_labels, num_masks, threshold= self.object_threshold),
-                "loss_dice": dice_loss_jit(point_logits, point_labels, num_masks, threshold= self.object_threshold),
+                "loss_mask": sigmoid_ce_loss_jit(point_logits, point_labels, num_masks, threshold= self.object_threshold, scores=scores),
+                "loss_dice": dice_loss_jit(point_logits, point_labels, num_masks, threshold= self.object_threshold, scores=scores),
             } 
         else:
-            scores = torch.as_tensor(scores)
             try:
                 loss_mask = sigmoid_ce_loss_jit(point_logits, point_labels, num_masks, threshold= self.object_threshold, scores=scores)
             except:

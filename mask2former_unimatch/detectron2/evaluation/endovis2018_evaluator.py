@@ -817,8 +817,8 @@ class COCOevalMaxDets(COCOeval):
 def visualize(image, pred, mask, name, output_dir):
     #breakpoint()
     image_c = image
-    pred_c = pred
-    mask_c = mask
+    pred_c = pred.astype('uint8')
+    mask_c = mask.astype('uint8')
     fig, ax = plt.subplots(1,3)
     ax[0].set_title('Image',fontsize = 5)
     ax[0].imshow(image_c)
