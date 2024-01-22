@@ -1,4 +1,9 @@
-CUDA_VISIBLE_DEVICES=3 python train_net.py --num-gpus 1 \
+#CUDA_VISIBLE_DEVICES=3 python train_net.py --num-gpus 1 \
+#--config-file configs/endovis2018/1_2/SwinS.yaml \
+#OUTPUT_DIR output/endovis2018/1_2/SwinS/proportionnal_loss/conf/0.90 \
+#MODEL.WEIGHTS "https://dl.fbaipublicfiles.com/maskformer/mask2former/coco/instance/maskformer2_swin_small_bs16_50ep/model_final_1e7f22.pkl"
+
+CUDA_VISIBLE_DEVICES=0 python train_net.py --num-gpus 1 \
 --config-file configs/endovis2018/1_2/SwinS.yaml \
-OUTPUT_DIR output/endovis2018/1_2/SwinS/other_transforms_u_no_rand_apply_less_strong/conf/0.95 \
+OUTPUT_DIR output/endovis2018/1_2/SwinS/new_transforms/batch4 \
 MODEL.WEIGHTS "https://dl.fbaipublicfiles.com/maskformer/mask2former/coco/instance/maskformer2_swin_small_bs16_50ep/model_final_1e7f22.pkl"

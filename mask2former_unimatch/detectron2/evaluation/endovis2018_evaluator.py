@@ -290,6 +290,34 @@ class Endovis2018Evaluators(DatasetEvaluator):
         res["c_iou"] = total_ciou*100
         self._logger.info("Proposal metrics: \n" + create_small_table(res))
 
+        
+
+        self._logger.info("Preparing results for COCO format ...")
+        coco_results = list(itertools.chain(*[x["instances"] for x in predictions]))
+
+        if hasattr(self._metadata, "thing_dataset_id_to_contiguous_id"):
+            dataset_id_to_contiguous_id = self._metadata.thing_dataset_id_to_contiguous_id
+            all_contiguous_ids = list(dataset_id_to_contiguous_id.values())
+            num_classes = len(all_contiguous_ids)
+            assert min(all_contiguous_ids) == 0 and max(all_contiguous_ids) == num_classes - 1
+
+            reverse_id_mapping = {v: k for k, v in dataset_id_to_contiguous_id.items()}
+            for result in coco_results:
+                category_id = result["category_id"]
+                assert category_id < num_classes, (
+                    f"A prediction has class={category_id}, "
+                    f"but the dataset only has {num_classes} classes and "
+                    f"predicted class id should be in [0, {num_classes - 1}]."
+                )
+                result["category_id"] = reverse_id_mapping[category_id]
+
+        if self._output_dir:
+            file_path = os.path.join(self._output_dir, "coco_instances_results.json")
+            self._logger.info("Saving results to {}".format(file_path))
+            with PathManager.open(file_path, "w") as f:
+                f.write(json.dumps(coco_results))
+                f.flush()
+
         gc.collect()
         return res
 
