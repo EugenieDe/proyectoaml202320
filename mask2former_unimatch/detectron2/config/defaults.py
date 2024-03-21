@@ -99,6 +99,8 @@ _C.DATASETS.TRAIN = ()
 _C.DATASETS.TRAIN_U = ()
 _C.DATASETS.TRAIN_L = ()
 
+_C.DATASETS.EVALUATOR = "endovis2018"
+
 # List of the pre-computed proposal files for training, which must be consistent
 # with datasets listed in DATASETS.TRAIN.
 _C.DATASETS.PROPOSAL_FILES_TRAIN = ()

@@ -14,7 +14,7 @@ from detectron2.structures import BitMasks, Instances
 
 from pycocotools import mask as coco_mask
 
-__all__ = ["Endo2018InstanceDatasetMapper"]
+__all__ = ["UnimatchInstanceDatasetMapper"]
 
 
 def convert_coco_poly_to_mask(segmentations, height, width):
@@ -80,7 +80,7 @@ def build_transform_gen(cfg, is_train, mode):
 
 
 # This is specifically designed for the Endovis 2018 dataset.
-class Endo2018InstanceDatasetMapper:
+class UnimatchInstanceDatasetMapper:
     """
     A callable which takes a dataset dict in Detectron2 Dataset format,
     and map it into a format used by MaskFormer.

@@ -41,7 +41,8 @@ from detectron2.evaluation import (
     LVISEvaluator,
     SemSegEvaluator,
     verify_results,
-    Endovis2018Evaluators
+    Endovis2018Evaluators,
+    GraspEvaluators
 )
 from detectron2_git.projects.DeepLab.deeplab import add_deeplab_config, build_lr_scheduler
 from detectron2.solver.build import maybe_add_gradient_clipping
@@ -57,25 +58,35 @@ from mask2former import (
     MaskFormerSemanticDatasetMapper,
     SemanticSegmentorWithTTA,
     add_maskformer2_config,
-    Endo2018InstanceDatasetMapper,
+    UnimatchInstanceDatasetMapper,
 )
 
 
-json_path_unlabeled = "/home/eugenie/These/data/endovis2018/train/splits/1_2/unlabeled.json"
-json_path_labeled = "/home/eugenie/These/data/endovis2018/train/splits/1_2/labeled.json"
-json_path_val = "/home/eugenie/These/data/endovis2018/val/RobotSeg2018_inst_class_val.json"
+json_path_unlabeled = "/home/eugenie/EndoVis/data/endovis2018/train/splits/1_2/unlabeled.json"
+json_path_labeled = "/home/eugenie/EndoVis/data/endovis2018/train/splits/1_2/labeled.json"
+json_path_val = "/home/eugenie/EndoVis/data/endovis2018/RobotSeg2018_inst_class_val.json"
+json_path_train = "/home/eugenie/EndoVis/data/endovis2018/RobotSeg2018_inst_class_train.json"
 
 from detectron2.data.datasets import register_coco_instances
 
 metadata = {'evaluator_type': 'sem_seg',}
 
-register_coco_instances('endovis2018_train_1_2_unlabeled', {}, json_path_unlabeled, "/home/eugenie/These/data/endovis2018/train/images")
-register_coco_instances('endovis2018_train_1_2_labeled', {}, json_path_labeled, "/home/eugenie/These/data/endovis2018/train/images")
-register_coco_instances('endovis2018_train_1_4_unlabeled', {}, "/home/eugenie/These/data/endovis2018/train/splits/1_4/unlabeled.json", "/home/eugenie/These/data/endovis2018/train/images")
-register_coco_instances('endovis2018_train_1_4_labeled', {}, "/home/eugenie/These/data/endovis2018/train/splits/1_4/labeled.json", "/home/eugenie/These/data/endovis2018/train/images")
-register_coco_instances('endovis2018_train_1_8_unlabeled', {}, "/home/eugenie/These/data/endovis2018/train/splits/1_8/unlabeled.json", "/home/eugenie/These/data/endovis2018/train/images")
-register_coco_instances('endovis2018_train_1_8_labeled', {}, "/home/eugenie/These/data/endovis2018/train/splits/1_8/labeled.json", "/home/eugenie/These/data/endovis2018/train/images")
-register_coco_instances('endovis2018_val', {}, json_path_val, "/home/eugenie/These/data/endovis2018/val/images")
+register_coco_instances('endovis2018_train_1_2_unlabeled', {}, json_path_unlabeled, "/media/SSD0/ihernandez/ENDOVIS/data/endovis2018/train/images")
+register_coco_instances('endovis2018_train_1_2_labeled', {}, json_path_labeled, "/media/SSD0/ihernandez/ENDOVIS/data/endovis2018/train/images")
+register_coco_instances('endovis2018_train_1_4_unlabeled', {}, "/home/eugenie/EndoVis/data/endovis2018/train/splits/1_4/unlabeled.json", "/media/SSD0/ihernandez/ENDOVIS/data/endovis2018/train/images")
+register_coco_instances('endovis2018_train_1_4_labeled', {}, "/home/eugenie/EndoVis/data/endovis2018/train/splits/1_4/labeled.json", "/media/SSD0/ihernandez/ENDOVIS/data/endovis2018/train/images")
+register_coco_instances('endovis2018_train_1_8_unlabeled', {}, "/home/eugenie/EndoVis/data/endovis2018/train/splits/1_8/unlabeled.json", "/media/SSD0/ihernandez/ENDOVIS/data/endovis2018/train/images")
+register_coco_instances('endovis2018_train_1_8_labeled', {}, "/home/eugenie/EndoVis/data/endovis2018/train/splits/1_8/labeled.json", "/media/SSD0/ihernandez/ENDOVIS/data/endovis2018/train/images")
+register_coco_instances('endovis2018_val', {}, json_path_val, "/media/SSD0/ihernandez/ENDOVIS/data/endovis2018/val/images")
+register_coco_instances('endovis2018_train', {}, json_path_train, "/media/SSD0/ihernandez/ENDOVIS/data/endovis2018/train/images")
+
+register_coco_instances('grasp_fold1_dense', {}, "/media/SSD1/nayobi/All_datasets/PSI-AVA/annotations/PSI-AVA_v2_final/dense_annotations_30fps/psiava_v2_dense_fold1.json", "/media/SSD1/nayobi/All_datasets/PSI-AVA/dense_keyframes/")
+register_coco_instances('grasp_fold2_dense', {}, "/media/SSD1/nayobi/All_datasets/PSI-AVA/annotations/PSI-AVA_v2_final/dense_annotations_30fps/psiava_v2_dense_fold2.json", "/media/SSD1/nayobi/All_datasets/PSI-AVA/dense_keyframes/")
+register_coco_instances('grasp_test_dense', {}, "/media/SSD1/nayobi/All_datasets/PSI-AVA/annotations/PSI-AVA_v2_final/dense_annotations_30fps/psiava_v2_dense_test.json", "/media/SSD1/nayobi/All_datasets/PSI-AVA/dense_keyframes/")
+register_coco_instances('grasp_train_dense', {}, "/media/SSD1/nayobi/All_datasets/PSI-AVA/annotations/PSI-AVA_v2_final/dense_annotations_30fps/psiava_v2_dense_train.json", "/media/SSD1/nayobi/All_datasets/PSI-AVA/dense_keyframes/")
+register_coco_instances('grasp_fold1_dense_unlabeled_neighbors', {}, "/home/eugenie/EndoVis/data/GraSP/unlabeled_splits/fold1/unlabeled_neighbors_fold1_dense.json", "/media/SSD1/nayobi/All_datasets/PSI-AVA/dense_keyframes/")
+register_coco_instances('grasp_fold2_dense_unlabeled_neighbors', {}, "/home/eugenie/EndoVis/data/GraSP/unlabeled_splits/fold2/unlabeled_neighbors_fold2_dense.json", "/media/SSD1/nayobi/All_datasets/PSI-AVA/dense_keyframes/")
+register_coco_instances('grasp_train_dense_unlabeled_neighbors', {}, "/home/eugenie/EndoVis/data/GraSP/unlabeled_splits/train/unlabeled_neighbors_train_dense.json", "/media/SSD1/nayobi/All_datasets/PSI-AVA/dense_keyframes/")
 """
 
 json_path_unlabeled = "/home/eugenie/EndoVis/data/endovis2018/train/splits/1_2/unlabeled.json"
@@ -107,9 +118,11 @@ class Trainer(DefaultTrainer):
             output_folder = os.path.join(cfg.OUTPUT_DIR, "inference")
         evaluator_list = []
         #evaluator_type = MetadataCatalog.get(dataset_name).evaluator_type
-        evaluator_type = "endovis2018"
+        evaluator_type = cfg.DATASETS.EVALUATOR
         if evaluator_type == "endovis2018":
             evaluator_list.append(Endovis2018Evaluators(dataset_name, output_dir=output_folder))
+        if evaluator_type == "grasp":
+            evaluator_list.append(GraspEvaluators(dataset_name, output_dir=output_folder))
         # semantic segmentation
         if evaluator_type in ["sem_seg", "ade20k_panoptic_seg"]:
             evaluator_list.append(
@@ -201,8 +214,8 @@ class Trainer(DefaultTrainer):
         elif cfg.INPUT.DATASET_MAPPER_NAME == "coco_panoptic_lsj":
             mapper = COCOPanopticNewBaselineDatasetMapper(cfg, True)
             return build_detection_train_loader(cfg, mapper=mapper)
-        elif cfg.INPUT.DATASET_MAPPER_NAME == "endovis2018_instance":
-            mapper = Endo2018InstanceDatasetMapper(cfg, True, mode=mode)
+        elif cfg.INPUT.DATASET_MAPPER_NAME == "endovis2018_instance" or cfg.INPUT.DATASET_MAPPER_NAME == "grasp_instance":
+            mapper = UnimatchInstanceDatasetMapper(cfg, True, mode=mode)
             return build_detection_train_loader(cfg, mapper=mapper, mode=mode)
         else:
             mapper = None

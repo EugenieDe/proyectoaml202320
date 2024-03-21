@@ -30,6 +30,8 @@ from detectron2.utils.file_io import PathManager
 import detectron2.utils.comm as comm
 from detectron2.utils.logger import create_small_table
 
+from detectron2.data import detection_utils as utils
+
 try:
     from detectron2.evaluation.fast_eval_api import COCOeval_opt
 except ImportError:
@@ -43,7 +45,7 @@ from pycocotools.cocoeval import COCOeval
 
 from .evaluator import DatasetEvaluator
 
-class Endovis2018Evaluators(DatasetEvaluator):
+class GraspEvaluators(DatasetEvaluator):
     """
     Wrapper class to combine multiple :class:`DatasetEvaluator` instances.
 
@@ -168,7 +170,10 @@ class Endovis2018Evaluators(DatasetEvaluator):
                 "instances" that contains :class:`Instances`.
         """
         for input, output in zip(inputs, outputs):
-            prediction = {"image_id": input["image_id"], "file_name": input["file_name"].split('/')[-1]}
+            #prediction = {"image_id": input["image_id"], "file_name": input["file_name"].split('/')[-1]}
+            file_name = input["file_name"].split('/')[-2] + '/' + input["file_name"].split('/')[-1]
+            file_name = file_name.split('.')[0] + ".png"
+            prediction = {"image_id": input["image_id"], "file_name": file_name}
 
             if "instances" in output:
                 instances = output["instances"].to(self._cpu_device)
@@ -207,6 +212,7 @@ class Endovis2018Evaluators(DatasetEvaluator):
         ious = []
         gt_ious = []
         pcls_ious = {1:[],2:[],3:[],4:[],5:[],6:[],7:[]}
+        """
         names = ['seq_2_frame057.png',
             'seq_15_frame022.png',
             'seq_5_frame014.png',
@@ -217,24 +223,22 @@ class Endovis2018Evaluators(DatasetEvaluator):
             'seq_2_frame012.png',
             'seq_2_frame90.png'
             ]
+        """
         for pred in predictions:
-            gt_img = skio.imread(os.path.join('/media/SSD0/ihernandez/ENDOVIS/data/endovis2018/val/annotations/', pred["file_name"]))#skio.imread(os.path.join('/media/SSD0/ihernandez/ENDOVIS/data/endovis2018/train/annotations/', pred["file_name"])) #skio.imread(os.path.join('/media/SSD0/ihernandez/ENDOVIS/data/endovis2018/val/annotations/', pred["file_name"]))
-            gt_img[gt_img == 6] = 4
-            gt_img[gt_img == 7] = 5
-            gt_img[gt_img == 8] = 6
-            gt_img[gt_img == 9] = 7
-
+            gt_img = utils.read_image(os.path.join("/media/SSD1/nayobi/All_datasets/GraSP/GraSP_30fps/segmentations/", pred["file_name"]), format="RGB")[:,:,0]
+            #gt_img = skio.imread(os.path.join('/media/SSD0/ihernandez/ENDOVIS/data/endovis2018/val/annotations/', pred["file_name"]))#skio.imread(os.path.join('/media/SSD0/ihernandez/ENDOVIS/data/endovis2018/train/annotations/', pred["file_name"])) #skio.imread(os.path.join('/media/SSD0/ihernandez/ENDOVIS/data/endovis2018/val/annotations/', pred["file_name"]))
+            breakpoint()
             gt_classes = set(np.unique(gt_img))
             gt_classes.remove(0)
-            sem_im = np.zeros((1024,1280))
+            sem_im = np.zeros((800,1280))
+            #breakpoint()
             for ins in pred["instances"]:
                 p_mask = mask_util.decode(ins['segmentation'])
                 sem_im[p_mask==1]=ins['category_id']+1
-            breakpoint()
 
-            if pred["file_name"] in names:
-                image = skio.imread(os.path.join('/media/SSD0/ihernandez/ENDOVIS/data/endovis2018/val/images', pred["file_name"]))
-                visualize(image, sem_im, gt_img, pred["file_name"], self._output_dir)
+            #if pred["file_name"] in names:
+            #    image = skio.imread(os.path.join('/media/SSD0/ihernandez/ENDOVIS/data/endovis2018/val/images', pred["file_name"]))
+            #    visualize(image, sem_im, gt_img, pred["file_name"], self._output_dir)
 
 
             categories = set(np.unique(sem_im))

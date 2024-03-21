@@ -17,8 +17,8 @@ from .data.dataset_mappers.mask_former_panoptic_dataset_mapper import (
 from .data.dataset_mappers.mask_former_semantic_dataset_mapper import (
     MaskFormerSemanticDatasetMapper,
 )
-from .data.dataset_mappers.endo2018_instance_mapper import (
-    Endo2018InstanceDatasetMapper,
+from .data.dataset_mappers.unimatch_instance_mapper import (
+    UnimatchInstanceDatasetMapper,
 )
 
 # models

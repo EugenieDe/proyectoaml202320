@@ -12,6 +12,11 @@ import pycocotools.mask as mask_util
 import torch
 from PIL import Image
 
+import zlib
+import base64
+import pycocotools.mask as m
+import cv2
+
 from detectron2.structures import (
     BitMasks,
     Boxes,
@@ -300,6 +305,15 @@ def transform_instance_annotations(
     annotation["bbox"] = np.minimum(bbox, list(image_size + image_size)[::-1])
     annotation["bbox_mode"] = BoxMode.XYXY_ABS
 
+    def decode_str(compressed_rle_string_dict):
+        compressed_rle_dict = compressed_rle_string_dict.copy()
+        #try:
+        uncodedStr = base64.b64decode(compressed_rle_string_dict['counts'])  
+        uncompressedStr = zlib.decompress(uncodedStr,wbits = zlib.MAX_WBITS)   
+        compressed_rle_dict['counts'] = uncompressedStr
+
+        return compressed_rle_dict
+
     if "segmentation" in annotation:
         # each instance contains 1 or more polygons
         segm = annotation["segmentation"]
@@ -311,10 +325,64 @@ def transform_instance_annotations(
             ]
         elif isinstance(segm, dict):
             # RLE
-            mask = mask_util.decode(segm)
+            #-----------------------------------------------------------------
+            #compressed_rle = decode_str(annotation['compressed_rle'])
+            #||||||||||||||compressed_rle = decode_str(segm)
+            try:
+                segm['counts'] = segm["counts"].encode("utf-8")
+                mask = m.decode(segm)
+            except:
+                #segm['counts'] = bytes(segm['counts'], 'utf-8')
+                #print([segm])
+                #print(type([segm]))
+                #print(type([segm])==list)
+                compressed_rle = decode_str(segm)
+                mask = m.decode(compressed_rle)
+            #mask = mask_util.decode(segm)
+            #------------------------------------------------------------------
             mask = transforms.apply_segmentation(mask)
             assert tuple(mask.shape[:2]) == image_size
-            annotation["segmentation"] = mask
+            """
+            # ------------------------------------------------------
+            copy_mask = copy.deepcopy(mask)
+            copy_mask /= 255
+            contours = measure.find_contours(copy_mask, 0.5)
+            for contour in contours:
+                contour = np.flip(contour, axis=1)
+                segmentation = contour.ravel().tolist()
+                annotation["segmentation"].append(segmentation)
+            polygons = [np.asarray(p).reshape(-1, 2) for p in segm]
+            annotation["segmentation"] = [
+                p.reshape(-1) for p in transforms.apply_polygons(polygons)
+            ]
+            # -------------------------------------------------------------
+            def decode_polygon(segmentation):
+                width, height = IMG_SIZE
+                polys = [np.array(p).flatten().tolist() for p in segmentation]
+                rles = m.frPyObjects(polys, height, width)
+                rle = m.merge(rles)
+                mask = m.decode(rle).astype('float')
+
+                return mask
+
+            """
+            contours, _ = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+            polygon = []
+
+            for obj in contours:
+                if len(obj)>2:
+                    coords = []        
+                    for point in obj:
+                        coords.append(int(point[0][0]))
+                        coords.append(int(point[0][1]))
+                    polygon.append(coords)
+            polygons = [np.asarray(p).reshape(-1, 2) for p in polygon]
+            #print(polygons)
+            annotation["segmentation"] = [
+                p.reshape(-1) for p in transforms.apply_polygons(polygons)
+            ]
+            
+            #annotation["segmentation"] = mask
         else:
             raise ValueError(
                 "Cannot transform segmentation of type '{}'!"

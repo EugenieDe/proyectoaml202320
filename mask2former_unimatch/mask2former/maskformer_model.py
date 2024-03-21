@@ -291,7 +291,7 @@ class MaskFormer(nn.Module):
             losses_u_w_fp = self.criterion_u(outputs_u_wp, targets_u_w, scores)
             losses_u_s1 = self.criterion_u(outputs_u_s1, targets_u_w, scores)
             losses_u_s2 = self.criterion_u(outputs_u_s2, targets_u_w, scores)
-
+            
             losses = {}
             for k in losses_x.keys():
                 losses[k] = (losses_x[k] + losses_u_s1[k] * 0.25 + losses_u_s2[k] * 0.25 + losses_u_w_fp[k] *0.5) / 2.0 
@@ -355,9 +355,11 @@ class MaskFormer(nn.Module):
                 
                 # instance segmentation inference
                 if self.instance_on:
+                    #Problème là? Déjà instances_r en 256x256
                     instance_r = retry_if_cuda_oom(self.instance_inference)(mask_cls_result, mask_pred_result)
                     processed_results[-1]["instances"] = instance_r
 
+            breakpoint()
             return processed_results
 
     def prepare_targets(self, targets, images, mode=None):
